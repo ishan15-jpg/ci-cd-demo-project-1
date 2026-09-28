@@ -1,0 +1,29 @@
+{
+  "name": "ci-safety-net-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "build": "tsc",
+    "lint": "eslint src",
+    "start": "node dist/server.js",
+    "test": "tsx --test src/app.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@types/dotenv": "^6.1.1",
+    "@types/node": "^22.20.4",
+    "eslint": "^10.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.4"
+  }
+}
