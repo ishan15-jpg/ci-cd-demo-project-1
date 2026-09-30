@@ -1,14 +1,13 @@
 name: Test PR workflow
 
-on: [ pull_request, push ]
+on:
+  pull_request:
+    branches: 
+      - 'main'
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x, 22.x]
 
     steps: 
       - name: Checkout the code
@@ -23,14 +22,60 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run linting
+      - name: Lint
         run: npm run lint
 
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Run test cases
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          package-manager-cache: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
         run: npm run test
 
-      - name: Build the application
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        path: test-results.txt
+      
+  build:
+    needs: [lint, test]
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          package-manager-cache: true
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: build the application
         run: npm run build
