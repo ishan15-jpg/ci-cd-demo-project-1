@@ -51,7 +51,7 @@ test("GET /bye reports that the API is returning bye message", async () => {
     const response = await fetch(`${baseUrl}/bye`);
 
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { message: "bye" });
+    assert.deepEqual(await response.json(), { message: "bye bye" });
   });
 });
 
