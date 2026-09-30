@@ -53,7 +53,8 @@ jobs:
 
       - name: Upload test results
         uses: actions/upload-artifact@v7
-        path: test-results.txt
+        with:
+          path: test-results.txt
       
   build:
     needs: [lint, test]
