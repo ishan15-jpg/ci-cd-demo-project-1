@@ -6,6 +6,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x]
+
     steps: 
       - name: Checkout the code
         uses: actions/checkout@v7
@@ -13,7 +17,7 @@ jobs:
       - name: Check node version
         uses: actions/setup-node@v7
         with:
-          check-latest: true
+          node-version: ${{ matrix.node-version }}
           package-manager-cache: false
 
       - name: Install dependencies
