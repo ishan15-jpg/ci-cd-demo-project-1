@@ -46,6 +46,15 @@ test("GET /hello reports that the API is returning hello message", async () => {
   });
 });
 
+test("GET /bye reports that the API is returning bye message", async () => {
+  await withApp(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/bye`);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { message: "bye" });
+  });
+});
+
 test("unknown routes return a JSON 404", async () => {
   await withApp(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/missing`);
