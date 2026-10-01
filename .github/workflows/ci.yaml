@@ -1,9 +1,6 @@
 name: CI workflow
 
-on: 
-  push:
-    branches: 
-      - feat/*
+on: [push, pull_request]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
