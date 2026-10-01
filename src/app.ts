@@ -36,11 +36,11 @@ if(request.method === "GET" && request.url === "/weather"){
 
 
 
-// if(request.method === "GET" && request.url === "/mood"){
-//   response.writeHead(200);
-//   response.end(JSON.stringify({ message: "happy" }));
-//   return;
-// }
+if(request.method === "GET" && request.url === "/mood"){
+  response.writeHead(200);
+  response.end(JSON.stringify({ message: "happy" }));
+  return;
+}
 
 
     response.writeHead(404);
