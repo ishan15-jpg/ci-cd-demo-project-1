@@ -64,7 +64,7 @@ test("GET /how-are-you reports that the API is returning fine message", async ()
   });
 });
 
-test("GET /bye reports that the API is returning weather message", async () => {
+test("GET /weather reports that the API is returning weather message", async () => {
   await withApp(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/weather`);
 
