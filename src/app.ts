@@ -23,10 +23,10 @@ export function createApp() {
     }
 
     if(request.method === "GET" && request.url === "/how-are-you"){
-  response.writeHead(200);
-  response.end(JSON.stringify({ message: "i am fine" }));
-  return;
-}
+      response.writeHead(200);
+      response.end(JSON.stringify({ message: "i am fine" }));
+      return;
+    }
 
 if(request.method === "GET" && request.url === "/weather"){
   response.writeHead(200);
