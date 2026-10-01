@@ -1,37 +1,37 @@
-name: Test PR workflow
+name: CI workflow
 
-on:
+on: 
   pull_request:
     branches: 
-      - 'main'
+      - main
 
 jobs:
   lint:
     runs-on: ubuntu-latest
 
-    steps: 
-      - name: Checkout the code
+    steps:
+      - name: Checkout code
         uses: actions/checkout@v7
-      
-      - name: Check node version
+
+      - name: Setup node
         uses: actions/setup-node@v7
-        with:
-          node-version: ${{ matrix.node-version }}
-          package-manager-cache: true
+        with: 
+          node-version: 24.x
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
+      - name: Run lint check command
         run: npm run lint
 
-      - name: Type check
+      - name: Run type check command
         run: npx tsc --noEmit
 
   test:
     runs-on: ubuntu-latest
 
-    strategy:
+    strategy: 
       matrix:
         node-version: [18.x, 20.x, 22.x]
 
@@ -43,28 +43,24 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
-          package-manager-cache: true
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Test
+      - name: Run test cases
         run: npm run test
 
-      - name: Upload test results
+      - name: Save test result
         uses: actions/upload-artifact@v7
-        with:
+        with: 
           path: test-results.txt
-      
+
   build:
     needs: [lint, test]
 
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        node-version: [18.x, 20.x, 22.x]
-    
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -72,11 +68,11 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v7
         with:
-          node-version: ${{ matrix.node-version }}
-          package-manager-cache: true
+          node-version: 24.x
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: build the application
+      - name: Build the application
         run: npm run build
