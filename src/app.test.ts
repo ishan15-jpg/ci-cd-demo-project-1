@@ -64,6 +64,24 @@ test("GET /bye reports that the API is returning fine message", async () => {
   });
 });
 
+test("GET /bye reports that the API is returning weather message", async () => {
+  await withApp(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/weather`);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { message: "sunny" });
+  });
+});
+
+// test("GET /bye reports that the API is returning mood message", async () => {
+//   await withApp(async (baseUrl) => {
+//     const response = await fetch(`${baseUrl}/mood`);
+
+//     assert.equal(response.status, 200);
+//     assert.deepEqual(await response.json(), { message: "happy" });
+//   });
+// });
+
 
 test("unknown routes return a JSON 404", async () => {
   await withApp(async (baseUrl) => {
