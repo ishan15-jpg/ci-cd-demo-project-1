@@ -120,9 +120,7 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
   deploy:
     needs: [build-and-push]
@@ -143,9 +141,6 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -x
-            echo "---starting deployment---"
-
             # 1. Login to AWS ECR
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
@@ -158,5 +153,3 @@ jobs:
 
             # 4. Start the container
             docker run -d -p $PORT:$PORT -e PORT=$PORT --name api-server $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/my-app:${{ github.sha }} 
-
-            echo "---deployment finished successfully---"
