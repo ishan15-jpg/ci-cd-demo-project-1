@@ -78,51 +78,51 @@ jobs:
       - name: Build the application
         run: npm run build
 
-  # build-and-push:
-  #   needs: [build]
+  build-and-push:
+    needs: [build]
 
-  #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
-  #   runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
-  #   permissions:
-  #     id-token: write
-  #     contents: read
+    permissions:
+      id-token: write
+      contents: read
 
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v7
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
 
-  #     - name: Debug OIDC Identity
-  #       run: |
-  #         echo "The current GitHub environment is:"
-  #         echo "Repository: ${{ github.repository }}"
-  #         echo "Ref: ${{ github.ref }}"
-  #         echo "Actor: ${{ github.actor }}"
+      - name: Debug OIDC Identity
+        run: |
+          echo "The current GitHub environment is:"
+          echo "Repository: ${{ github.repository }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Actor: ${{ github.actor }}"
 
-  #     - name: Configure AWS credentials
-  #       uses: aws-actions/configure-aws-credentials@v6
-  #       with:
-  #         role-to-assume: ${{ secrets.AWS_ROLE }} 
-  #         aws-region: ${{ secrets.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }} 
+          aws-region: ${{ secrets.AWS_REGION }}
 
-  #     - name: Confirm role assumption
-  #       run: aws sts get-caller-identity
+      - name: Confirm role assumption
+        run: aws sts get-caller-identity
 
-  #     - name: Login to AWS ECR
-  #       id: ecr-login
-  #       uses: aws-actions/amazon-ecr-login@v2
+      - name: Login to AWS ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
 
-  #     - name: Build, tag and push image to AWS ECR
-  #       env:
-  #         ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-  #         ECR_REPOSITORY: my-app
-  #         IMAGE_TAG: ${{ github.sha }}
-  #       run: |
-  #         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-  #         docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-  #         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-  #         docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+      - name: Build, tag and push image to AWS ECR
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: my-app
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
   deploy:
     needs: [build]
