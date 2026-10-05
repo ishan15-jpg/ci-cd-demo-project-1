@@ -125,7 +125,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
   deploy:
-    needs: [build]
+    needs: [build-and-push]
 
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
