@@ -19,6 +19,8 @@ WORKDIR /app
 RUN addgroup -S appgroup && \
     adduser -S appuser -G appgroup
 
+RUN apk add --no-cache curl 
+
 COPY package*.json ./
 
 RUN npm ci --omit=dev && npm cache clean --force

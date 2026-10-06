@@ -1,65 +1,65 @@
-name: CI workflow
+name: CI/CD Workflow
 
 on: [push, pull_request]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
-  lint:
+  lint:   
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
-
+      
       - name: Setup node
-        uses: actions/setup-node@v7
-        with: 
+        uses: actions/setup-node@v4
+        with:
           node-version: 24.x
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run lint check command
-        run: npm run lint
-
-      - name: Run type check command
+      - name: Perform type checking
         run: npx tsc --noEmit
+
+      - name: Run linting
+        run: npm run lint
 
   test:
     runs-on: ubuntu-latest
 
-    strategy: 
+    strategy:
       matrix:
-        node-version: [18.x, 20.x, 22.x]
-
+          node-version: [18.x, 20.x, 22.x, 24.x]
+        
     steps:
-      - name: Checkout code
+      - name: Checkout code 
         uses: actions/checkout@v7
 
       - name: Setup node
-        uses: actions/setup-node@v7
-        with:
+        uses: actions/setup-node@v4
+        with: 
           node-version: ${{ matrix.node-version }}
-          cache: npm
-
+      
       - name: Install dependencies
         run: npm ci
 
-      - name: Run test cases
+      - name: Run test
         run: npm run test
 
-      - name: Save test result
+      - name: Upload test result as artifact
         uses: actions/upload-artifact@v7
         with: 
-          path: test-results.txt
+          path: test-result.txt
 
   build:
-    needs: [lint, test]
-
+    needs:
+      - lint
+      - test
     runs-on: ubuntu-latest
 
     steps:
@@ -67,10 +67,9 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: 24.x
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -79,10 +78,8 @@ jobs:
         run: npm run build
 
   build-and-push:
-    needs: [build]
-
+    needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
     runs-on: ubuntu-latest
 
     permissions:
@@ -93,27 +90,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Debug OIDC Identity
-        run: |
-          echo "The current GitHub environment is:"
-          echo "Repository: ${{ github.repository }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "Actor: ${{ github.actor }}"
-
-      - name: Configure AWS credentials
+      - name: Configure AWS ECR
         uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE }} 
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Confirm role assumption
-        run: aws sts get-caller-identity
+        with: 
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          region: ${{ secrets.AWS_REGION }}
 
       - name: Login to AWS ECR
         id: ecr-login
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag and push image to AWS ECR
+      - name: Build, tag and push image to ECR
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           ECR_REPOSITORY: my-app
@@ -123,34 +110,64 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
   deploy:
-    needs: [build-and-push]
-
+    needs: build-and-push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
     runs-on: ubuntu-latest
 
     steps:
-      - name: SSH into server
+      - uses: actions/checkout@v7
+
+      - name: Copy docker-compose.yaml and nginx.conf
+        uses: appleboy/scp-action@v1
+        with: 
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yaml, nginx.conf"
+          target: "/home/ubuntu/app"
+
+      - name: SSH into the server
         uses: appleboy/ssh-action@v1
         env:
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
-          PORT: ${{ secrets.PORT }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          APPLICATION_PORT: ${{ secrets.APPLICATION_PORT }}
+          IMAGE_TAG: ${{ secrets.sha }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: AWS_REGION,AWS_ACCOUNT_ID,PORT
+          envs: AWS_REGION, AWS_ACCOUNT_ID, APPLICATION_PORT, IMAGE_TAG
           script: |
-            # 1. Login to AWS ECR
+            # 1. Move to the directory
+            cd /home/ubuntu/app
+            
+            # 2. Define variables 
+            export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+            export ECR_REPOSITORY=my-app
+            export IMAGE_TAG=$IMAGE_TAG
+            export PORT=$APPLICATION_PORT
+
+            # 3. Login to AWS ECR
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
-            # 2. Stop and remove the old container
+            # 4. Stop the existing container
             docker stop api-server || true
             docker rm api-server || true
 
-            # 3. Pull new image
-            docker pull $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/my-app:${{ github.sha }}
+            # 5. Pull and deploy
+            docker compose pull
+            docker compose up -d
 
-            # 4. Start the container
-            docker run -d -p $PORT:$PORT -e PORT=$PORT --name api-server $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/my-app:${{ github.sha }} 
+            # 6. Health check
+            echo "Waiting for application to become healthy..."
+            for i in {1..10}; do
+              if [ "$(docker inspect --format '{{.State.Health.Status}}' api-server)" == "healthy" ]; then
+                echo "Deployment successfull..."
+                exit 0
+              fi
+              echo "Still waiting... ($i/10)"
+            done
+            echo "Deployment failed: Application did not become healthy in time."
+            docker compose logs api-server
+            exit 1
