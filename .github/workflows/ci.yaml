@@ -181,3 +181,5 @@ jobs:
                         echo "Retrying! $((10-i)) retries left..."
                     done
                     echo "Deployment failed! Max retries exceeded..."
+                    docker compose logs
+                    exit 1
