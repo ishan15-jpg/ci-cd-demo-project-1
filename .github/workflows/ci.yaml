@@ -133,7 +133,7 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           APPLICATION_PORT: ${{ secrets.APPLICATION_PORT }}
-          IMAGE_TAG: ${{ secrets.sha }}
+          IMAGE_TAG: ${{ github.sha }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
