@@ -121,6 +121,13 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
+            - env: 
+                SERVER_IP: ${{ secrets.SERVER_IP }}
+                ENVIRONMENT: ${{ github.env }}
+              run: |
+                echo "Environment: $ENVIRONMENT"
+                echo "Deploying to $SERVER_IP"
+
             - name: Checkout code
               uses: actions/checkout@v7
 
@@ -167,7 +174,7 @@ jobs:
                     # 6. Health check 
                     echo "Deploying application..."
                     for i in {1..10}; do
-                        if [ "$(docker inspect --format {{.State.Health.Status}} api-server)" == "healthy" ]; then
+                        if [ "$(docker inspect --format '{{.State.Health.Status}}' api-server)" == "healthy" ]; then
                             echo "Deployment successfull..."
                             exit 0
                         fi
