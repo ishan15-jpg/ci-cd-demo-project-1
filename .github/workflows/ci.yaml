@@ -153,20 +153,22 @@ jobs:
                     export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
                     export ECR_REPOSITORY=my-app
                     export IMAGE_TAG=$IMAGE_TAG
-                    export PORT=$APPLICATION_PORT
 
-                    # 3. Login docker to registry
+                    # 3. Create .env file
+                    echo "PORT=$APPLICATION_PORT" > .env
+
+                    # 4. Login docker to registry
                     aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
 
-                    # 4. Stop existing running container
+                    # 5. Stop existing running container
                     docker stop api-server || true
                     docker rm api-server || true
 
-                    # 5. Pull new image
+                    # 6. Pull new image
                     docker compose pull 
                     docker compose up -d
  
-                    # 6. Health check 
+                    # 7. Health check 
                     echo "Deploying application..."
                     for i in {1..10}; do
                         if [ "$(docker inspect --format '{{.State.Health.Status}}' api-server)" == "healthy" ]; then
