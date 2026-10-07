@@ -57,7 +57,7 @@ test("GET /bye reports that the API is returning bye message", async () => {
 
 test("GET /weather reports that the API is returning bye message", async () => {
   await withApp(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/bye`);
+    const response = await fetch(`${baseUrl}/weather`);
 
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { message: "sunny" });
