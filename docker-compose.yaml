@@ -1,7 +1,8 @@
 services:
   api-server:
     image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-    env_file: ./.env
+    env_file: 
+      - ./.env
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 5s

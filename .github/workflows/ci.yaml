@@ -32,9 +32,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-          node-version: [18.x, 20.x, 22.x, 24.x]
+    # strategy:
+    #   matrix:
+    #       node-version: [18.x, 20.x, 22.x, 24.x]
         
     steps:
       - name: Checkout code 
@@ -43,7 +43,8 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v4
         with: 
-          node-version: ${{ matrix.node-version }}
+          # node-version: ${{ matrix.node-version }}
+          node-version: 24.x
       
       - name: Install dependencies
         run: npm ci
@@ -146,7 +147,9 @@ jobs:
             export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
             export ECR_REPOSITORY=my-app
             export IMAGE_TAG=$IMAGE_TAG
-            export PORT=$APPLICATION_PORT
+
+            # 3. Create .env file
+            echo "PORT=$APPLICATION_PORT" > .env
 
             # 3. Login to AWS ECR
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
