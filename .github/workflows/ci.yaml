@@ -1,176 +1,176 @@
-name: CI/CD Workflow
+name: Practice workflow
 
 on: [push, pull_request]
 
 concurrency:
-    group: ${{ github.workflow }}-${{ github.ref }}
-    cancel-in-progress: true
+    group: ${{ github.env }}-${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  lint:   
-    runs-on: ubuntu-latest
+    lint:
+        runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-      
-      - name: Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24.x
-          cache: npm
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v7
 
-      - name: Install dependencies
-        run: npm ci
+            - name: Setup node
+              uses: actions/setup-node@v7
+              with:
+                node-version: 24.x
+                cache: npm
 
-      - name: Perform type checking
-        run: npx tsc --noEmit
+            - name: Install dependencies
+              run: npm ci
 
-      - name: Run linting
-        run: npm run lint
+            - name: Type checking
+              run: npx tsc --noEmit
 
-  test:
-    runs-on: ubuntu-latest
+            - name: Run linting
+              run: npm run lint
 
-    # strategy:
-    #   matrix:
-    #       node-version: [18.x, 20.x, 22.x, 24.x]
-        
-    steps:
-      - name: Checkout code 
-        uses: actions/checkout@v7
+    test: 
+        runs-on: ubuntu-latest
 
-      - name: Setup node
-        uses: actions/setup-node@v4
-        with: 
-          # node-version: ${{ matrix.node-version }}
-          node-version: 24.x
-      
-      - name: Install dependencies
-        run: npm ci
+        strategy:
+            matrix:
+                node-version: [18.x, 20.x, 22.x, 24.x]
 
-      - name: Run test
-        run: npm run test
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v7
 
-      - name: Upload test result as artifact
-        uses: actions/upload-artifact@v7
-        with: 
-          path: test-result.txt
+            - name: Setup node
+              uses: actions/setup-node@v7
+              with:
+                node-version: ${{ matrix.node-version }}
 
-  build:
-    needs:
-      - lint
-      - test
-    runs-on: ubuntu-latest
+            - name: Install dependencies
+              run: npm ci
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
+            - name: Run test 
+              run: npm run test
 
-      - name: Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24.x
+            - name: Upload test result as artifact
+              uses: actions/upload-artifact@v7
+              with:
+                path: 'test-result.txt'
 
-      - name: Install dependencies
-        run: npm ci
+    build: 
+        needs:
+          - lint
+          - test
 
-      - name: Build the application
-        run: npm run build
+        runs-on: ubuntu-latest
 
-  build-and-push:
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v7
 
-    permissions:
-      id-token: write
-      contents: read
+            - name: Setup node
+              uses: actions/setup-node@v7
+              with:
+                node-version: 24.x
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
+            - name: Install dependencies
+              run: npm ci
 
-      - name: Configure AWS ECR
-        uses: aws-actions/configure-aws-credentials@v6
-        with: 
-          role-to-assume: ${{ secrets.AWS_ROLE }}
-          aws-region: ${{ secrets.AWS_REGION }}
+            - name: Build the application
+              run: npm run build
 
-      - name: Login to AWS ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
+    build-and-push:
+        needs: build
 
-      - name: Build, tag and push image to ECR
-        env:
-          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          ECR_REPOSITORY: my-app
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
 
-  deploy:
-    needs: build-and-push
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+        runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v7
+        permissions:
+            id-token: write
+            contents: read
 
-      - name: Copy docker-compose.yaml and nginx.conf
-        uses: appleboy/scp-action@v1
-        with: 
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "docker-compose.yaml, nginx.conf"
-          target: "/home/ubuntu/app"
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v7
 
-      - name: SSH into the server
-        uses: appleboy/ssh-action@v1
-        env:
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          APPLICATION_PORT: ${{ secrets.APPLICATION_PORT }}
-          IMAGE_TAG: ${{ github.sha }}
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          envs: AWS_REGION, AWS_ACCOUNT_ID, APPLICATION_PORT, IMAGE_TAG
-          script: |
-            # 1. Move to the directory
-            cd /home/ubuntu/app
+            - name: Setup node
+              uses: actions/setup-node@v7
+
+            - name: Configure AWS with credentials
+              uses: aws-actions/configure-aws-credentials@v6
+              with: 
+                aws-region: ${{ secrets.AWS_REGION }}
+                role-to-assume: ${{ secrets.AWS_ROLE }}
             
-            # 2. Define variables 
-            export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-            export ECR_REPOSITORY=my-app
-            export IMAGE_TAG=$IMAGE_TAG
+            - name: Login to AWS ECR 
+              id: ecr-login
+              uses: aws-actions/amazon-ecr-login@v1
 
-            # 3. Create .env file
-            echo "PORT=$APPLICATION_PORT" > .env
+            - name: Build, tag and push image
+              env:
+                ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+                ECR_REPOSITORY: my-app
+                IMAGE_TAG: ${{ github.sha }} 
+              run: |
+                docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+                docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-            # 3. Login to AWS ECR
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+    deploy:
+        needs: build-and-push
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
+        runs-on: ubuntu-latest
 
-            # 4. Stop the existing container
-            docker stop api-server || true
-            docker rm api-server || true
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v7
 
-            # 5. Pull and deploy
-            docker compose pull
-            docker compose up -d
+            - name: Copy docker-compose.yaml and nginx.conf to server
+              uses: appleboy/scp-action@v1
+              with: 
+                host: ${{ secrets.SERVER_IP }}
+                username: ${{ secrets.SERVER_USER }}
+                key: ${{ secrets.SERVER_SSH_KEY }}
+                source: "docker-compose.yaml, nginx.conf"
+                target: "/home/ubuntu/app"
+              
+            - name: Deploy the application to server
+              uses: appleboy/ssh-action@v1
+              env:
+                AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+                AWS_REGION: ${{ secrets.AWS_REGION }}
+                IMAGE_TAG: ${{ github.sha }}
+              with: 
+                host: ${{ secrets.SERVER_IP }}
+                username: ${{ secrets.SERVER_USER }}
+                key: ${{ secrets.SERVER_SSH_KEY }}
+                envs: AWS_ACCOUNT_ID, AWS_REGION, IMAGE_TAG
+                script: |
+                    # 1. Change to directory
+                    cd /home/ubuntu/app
 
-            # 6. Health check
-            echo "Waiting for application to become healthy..."
-            for i in {1..10}; do
-              if [ "$(docker inspect --format '{{.State.Health.Status}}' api-server)" == "healthy" ]; then
-                echo "Deployment successfull..."
-                exit 0
-              fi
-              echo "Still waiting... ($i/10)"
-            done
-            echo "Deployment failed: Application did not become healthy in time."
-            docker compose logs api-server
-            exit 1
+                    # 2. Export variables
+                    export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+                    export ECR_REPOSITORY=my-app
+                    export IMAGE_TAG=$IMAGE_TAG
+
+                    # 3. Login docker to registry
+                    aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+                    # 4. Stop existing running container
+                    docker stop api-server || true
+                    docker rm api-server || true
+
+                    # 5. Pull new image
+                    docker compose pull 
+                    docker compose up -d
+ 
+                    # 6. Health check 
+                    echo "Deploying application..."
+                    for i in {1..10}; do
+                        if [ "$(docker inspect --format {{.State.Health.Status}} api-server)" == "healthy" ]; then
+                            echo "Deployment successfull..."
+                            exit 0
+                        fi
+                        echo "Retrying! $((10-i)) retries left..."
+                    done
+                    echo "Deployment failed! Max retries exceeded..."
