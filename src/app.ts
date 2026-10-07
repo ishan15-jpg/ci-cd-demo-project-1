@@ -22,7 +22,6 @@ export function createApp() {
         return;
     }
 
-
     response.writeHead(404);
     response.end(JSON.stringify({ error: "not_found" }));
   });
