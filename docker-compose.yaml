@@ -3,7 +3,7 @@ services:
     container_name: api-server
     image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
     environment:
-      - PORT: $PORT
+      - PORT=$PORT
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 5s
