@@ -80,7 +80,7 @@ jobs:
     build-and-push:
         needs: build
 
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        if: github.event_name == 'push' &&  github.ref == 'refs/heads/develop'
 
         runs-on: ubuntu-latest
 
@@ -121,13 +121,6 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - env: 
-                SERVER_IP: ${{ secrets.SERVER_IP }}
-                ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
-              run: |
-                echo "Environment: $ENVIRONMENT"
-                echo "Deploying to $SERVER_IP"
-
             - name: Checkout code
               uses: actions/checkout@v7
 
@@ -160,9 +153,7 @@ jobs:
                     export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
                     export ECR_REPOSITORY=my-app
                     export IMAGE_TAG=$IMAGE_TAG
-
-                    # 3. Create .env file
-                    echo "PORT=$APPLICATION_PORT" > .env
+                    export PORT=$APPLICATION_PORT
 
                     # 3. Login docker to registry
                     aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
