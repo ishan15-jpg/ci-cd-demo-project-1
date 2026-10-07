@@ -80,7 +80,7 @@ jobs:
     build-and-push:
         needs: build
 
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        if: github.event_name == 'push' &&  github.ref == 'refs/heads/develop'
 
         runs-on: ubuntu-latest
 
@@ -110,13 +110,9 @@ jobs:
                 ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
                 ECR_REPOSITORY: my-app
                 IMAGE_TAG: ${{ github.sha }} 
-                ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
               run: |
-                docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$ENVIRONMENT-$IMAGE_TAG .
-                docker push $ECR_REGISTRY/$ECR_REPOSITORY:$ENVIRONMENT-$IMAGE_TAG
-              # run: |
-              #   docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-              #   docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+                docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+                docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
     deploy:
         needs: build-and-push
@@ -144,12 +140,11 @@ jobs:
                 AWS_REGION: ${{ secrets.AWS_REGION }}
                 APPLICATION_PORT: ${{ secrets.APPLICATION_PORT }}
                 IMAGE_TAG: ${{ github.sha }}
-                ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
               with: 
                 host: ${{ secrets.SERVER_IP }}
                 username: ${{ secrets.SERVER_USER }}
                 key: ${{ secrets.SERVER_SSH_KEY }}
-                envs: AWS_ACCOUNT_ID, AWS_REGION, APPLICATION_PORT, IMAGE_TAG, ENVIRONMENT
+                envs: AWS_ACCOUNT_ID, AWS_REGION, APPLICATION_PORT, IMAGE_TAG
                 script: |
                     # 1. Change to directory
                     cd /home/ubuntu/app
@@ -157,22 +152,23 @@ jobs:
                     # 2. Export variables
                     export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
                     export ECR_REPOSITORY=my-app
-                    export IMAGE_TAG=$ENVIRONMENT-$IMAGE_TAG
-                    # export IMAGE_TAG=$IMAGE_TAG
-                    export PORT=$APPLICATION_PORT
+                    export IMAGE_TAG=$IMAGE_TAG
 
-                    # 3. Login docker to registry
+                    # 3. Create .env file
+                    echo "PORT=$APPLICATION_PORT" > .env
+
+                    # 4. Login docker to registry
                     aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
 
-                    # 4. Stop existing running container
+                    # 5. Stop existing running container
                     docker stop api-server || true
                     docker rm api-server || true
 
-                    # 5. Pull new image
+                    # 6. Pull new image
                     docker compose pull 
                     docker compose up -d
  
-                    # 6. Health check 
+                    # 7. Health check 
                     echo "Deploying application..."
                     for i in {1..10}; do
                         if [ "$(docker inspect --format '{{.State.Health.Status}}' api-server)" == "healthy" ]; then
