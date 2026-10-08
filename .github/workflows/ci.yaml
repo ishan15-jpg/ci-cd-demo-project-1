@@ -1,6 +1,13 @@
 name: Practice workflow
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'v*'
+  pull_request:
 
 concurrency:
     group: ${{ github.env }}-${{ github.workflow }}-${{ github.ref }}
@@ -80,7 +87,7 @@ jobs:
     build-and-push:
         needs: build
 
-        if: github.event_name == 'push' &&  github.ref == 'refs/heads/develop'
+        if: github.event_name == 'push' &&  (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
 
         runs-on: ubuntu-latest
 
@@ -116,8 +123,8 @@ jobs:
 
     deploy:
       needs: build-and-push
-      if: always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-      environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
+      if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
+      environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'prod' || 'staging' }}
       runs-on: ubuntu-latest
 
       steps:
