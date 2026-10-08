@@ -3,7 +3,6 @@ name: Practice workflow
 on:
   push:
     branches:
-      - main
       - develop
     tags:
       - 'v*'
@@ -14,117 +13,126 @@ concurrency:
 
 jobs:
     lint:
-        runs-on: ubuntu-latest
+      if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v7
+      runs-on: ubuntu-latest
 
-            - name: Setup node
-              uses: actions/setup-node@v7
-              with:
-                node-version: 24.x
-                cache: npm
+      steps:
+          - name: Checkout code
+            uses: actions/checkout@v7
 
-            - name: Install dependencies
-              run: npm ci
+          - name: Setup node
+            uses: actions/setup-node@v7
+            with:
+              node-version: 24.x
+              cache: npm
 
-            - name: Type checking
-              run: npx tsc --noEmit
+          - name: Install dependencies
+            run: npm ci
 
-            - name: Run linting
-              run: npm run lint
+          - name: Type checking
+            run: npx tsc --noEmit
+
+          - name: Run linting
+            run: npm run lint
 
     test: 
-        runs-on: ubuntu-latest
+      if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
 
-        strategy:
-            matrix:
-                node-version: [18.x, 20.x, 22.x, 24.x]
+      runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v7
+      strategy:
+          matrix:
+              node-version: [18.x, 20.x, 22.x, 24.x]
 
-            - name: Setup node
-              uses: actions/setup-node@v7
-              with:
-                node-version: ${{ matrix.node-version }}
+      steps:
+          - name: Checkout code
+            uses: actions/checkout@v7
 
-            - name: Install dependencies
-              run: npm ci
+          - name: Setup node
+            uses: actions/setup-node@v7
+            with:
+              node-version: ${{ matrix.node-version }}
 
-            - name: Run test 
-              run: npm run test
+          - name: Install dependencies
+            run: npm ci
 
-            - name: Upload test result as artifact
-              uses: actions/upload-artifact@v7
-              with:
-                path: 'test-result.txt'
+          - name: Run test 
+            run: npm run test
 
-    build: 
-        needs:
-          - lint
-          - test
+          - name: Upload test result as artifact
+            uses: actions/upload-artifact@v7
+            with:
+              path: 'test-result.txt'
 
-        runs-on: ubuntu-latest
+    build:       
+      needs:
+        - lint
+        - test
+  
+      if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      
+      runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v7
+      steps:
+          - name: Checkout code
+            uses: actions/checkout@v7
 
-            - name: Setup node
-              uses: actions/setup-node@v7
-              with:
-                node-version: 24.x
+          - name: Setup node
+            uses: actions/setup-node@v7
+            with:
+              node-version: 24.x
 
-            - name: Install dependencies
-              run: npm ci
+          - name: Install dependencies
+            run: npm ci
 
-            - name: Build the application
-              run: npm run build
+          - name: Build the application
+            run: npm run build
 
     build-and-push:
-        needs: build
+      needs: build
 
-        if: github.event_name == 'push' &&  (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
+      if: github.event_name == 'push' &&  github.ref == 'refs/heads/develop' 
 
-        runs-on: ubuntu-latest
+      runs-on: ubuntu-latest
 
-        permissions:
-            id-token: write
-            contents: read
+      permissions:
+        id-token: write
+        contents: read
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v7
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v7
 
-            - name: Setup node
-              uses: actions/setup-node@v7
+        - name: Setup node
+          uses: actions/setup-node@v7
 
-            - name: Configure AWS with credentials
-              uses: aws-actions/configure-aws-credentials@v6
-              with: 
-                aws-region: ${{ secrets.AWS_REGION }}
-                role-to-assume: ${{ secrets.AWS_ROLE }}
-            
-            - name: Login to AWS ECR 
-              id: ecr-login
-              uses: aws-actions/amazon-ecr-login@v1
+        - name: Configure AWS with credentials
+          uses: aws-actions/configure-aws-credentials@v6
+          with: 
+            aws-region: ${{ secrets.AWS_REGION }}
+            role-to-assume: ${{ secrets.AWS_ROLE }}
+        
+        - name: Login to AWS ECR 
+          id: ecr-login
+          uses: aws-actions/amazon-ecr-login@v1
 
-            - name: Build, tag and push image
-              env:
-                ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-                ECR_REPOSITORY: my-app
-                IMAGE_TAG: ${{ github.sha }} 
-              run: |
-                docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-                docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        - name: Build, tag and push image
+          env:
+            ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+            ECR_REPOSITORY: my-app
+            IMAGE_TAG: ${{ github.sha }} 
+          run: |
+            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+            docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
     deploy:
       needs: build-and-push
-      if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
+
+      if: always() && github.event_name == 'push' && (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
+      
       environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'prod' || 'staging' }}
+      
       runs-on: ubuntu-latest
 
       steps:
