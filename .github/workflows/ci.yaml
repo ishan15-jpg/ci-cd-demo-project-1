@@ -115,68 +115,68 @@ jobs:
                 docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
     deploy:
-        needs: build-and-push
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
-        environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
-        runs-on: ubuntu-latest
+      needs: build-and-push
+      if: always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+      environment: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
+      runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v7
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v7
 
-            - name: Copy docker-compose.yaml and nginx.conf to server
-              uses: appleboy/scp-action@v1
-              with: 
-                host: ${{ secrets.SERVER_IP }}
-                username: ${{ secrets.SERVER_USER }}
-                key: ${{ secrets.SERVER_SSH_KEY }}
-                source: "docker-compose.yaml, nginx.conf"
-                target: "/home/ubuntu/app"
-              
-            - name: Deploy the application to server
-              uses: appleboy/ssh-action@v1
-              env:
-                AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-                AWS_REGION: ${{ secrets.AWS_REGION }}
-                APPLICATION_PORT: ${{ secrets.APPLICATION_PORT }}
-                IMAGE_TAG: ${{ github.sha }}
-              with: 
-                host: ${{ secrets.SERVER_IP }}
-                username: ${{ secrets.SERVER_USER }}
-                key: ${{ secrets.SERVER_SSH_KEY }}
-                envs: AWS_ACCOUNT_ID, AWS_REGION, APPLICATION_PORT, IMAGE_TAG
-                script: |
-                    # 1. Change to directory
-                    cd /home/ubuntu/app
+        - name: Copy docker-compose.yaml and nginx.conf to server
+          uses: appleboy/scp-action@v1
+          with: 
+            host: ${{ secrets.SERVER_IP }}
+            username: ${{ secrets.SERVER_USER }}
+            key: ${{ secrets.SERVER_SSH_KEY }}
+            source: "docker-compose.yaml, nginx.conf"
+            target: "/home/ubuntu/app"
+          
+        - name: Deploy the application to server
+          uses: appleboy/ssh-action@v1
+          env:
+            AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+            AWS_REGION: ${{ secrets.AWS_REGION }}
+            APPLICATION_PORT: ${{ secrets.APPLICATION_PORT }}
+            IMAGE_TAG: ${{ github.sha }}
+          with: 
+            host: ${{ secrets.SERVER_IP }}
+            username: ${{ secrets.SERVER_USER }}
+            key: ${{ secrets.SERVER_SSH_KEY }}
+            envs: AWS_ACCOUNT_ID, AWS_REGION, APPLICATION_PORT, IMAGE_TAG
+            script: |
+                # 1. Change to directory
+                cd /home/ubuntu/app
 
-                    # 2. Export variables
-                    export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-                    export ECR_REPOSITORY=my-app
-                    export IMAGE_TAG=$IMAGE_TAG
+                # 2. Export variables
+                export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+                export ECR_REPOSITORY=my-app
+                export IMAGE_TAG=$IMAGE_TAG
 
-                    # 3. Create .env file
-                    echo "PORT=$APPLICATION_PORT" > .env
+                # 3. Create .env file
+                echo "PORT=$APPLICATION_PORT" > .env
 
-                    # 4. Login docker to registry
-                    aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+                # 4. Login docker to registry
+                aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
 
-                    # 5. Stop existing running container
-                    docker stop api-server || true
-                    docker rm api-server || true
+                # 5. Stop existing running container
+                docker stop api-server || true
+                docker rm api-server || true
 
-                    # 6. Pull new image
-                    docker compose pull 
-                    docker compose up -d
- 
-                    # 7. Health check 
-                    echo "Deploying application..."
-                    for i in {1..10}; do
-                        if [ "$(docker inspect --format '{{.State.Health.Status}}' api-server)" == "healthy" ]; then
-                            echo "Deployment successfull..."
-                            exit 0
-                        fi
-                        echo "Retrying! $((10-i)) retries left..."
-                    done
-                    echo "Deployment failed! Max retries exceeded..."
-                    docker compose logs
-                    exit 1
+                # 6. Pull new image
+                docker compose pull 
+                docker compose up -d
+
+                # 7. Health check 
+                echo "Deploying application..."
+                for i in {1..10}; do
+                    if [ "$(docker inspect --format '{{.State.Health.Status}}' api-server)" == "healthy" ]; then
+                        echo "Deployment successfull..."
+                        exit 0
+                    fi
+                    echo "Retrying! $((10-i)) retries left..."
+                done
+                echo "Deployment failed! Max retries exceeded..."
+                docker compose logs
+                exit 1
