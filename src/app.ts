@@ -22,11 +22,11 @@ export function createApp() {
         return;
     }
 
-    // if(request.method === "GET" && request.url === "/weather"){
-    //     response.writeHead(200);
-    //     response.end(JSON.stringify({ message: "sunny" }));
-    //     return;
-    // }
+    if(request.method === "GET" && request.url === "/weather"){
+        response.writeHead(200);
+        response.end(JSON.stringify({ message: "sunny" }));
+        return;
+    }
 
     response.writeHead(404);
     response.end(JSON.stringify({ error: "not_found" }));
