@@ -28,11 +28,11 @@ export function createApp() {
         return;
     }
 
-    if(request.method === "GET" && request.url === "/sayonara"){
-        response.writeHead(200);
-        response.end(JSON.stringify({ message: "sayonara" }));
-        return;
-    }
+    // if(request.method === "GET" && request.url === "/sayonara"){
+    //     response.writeHead(200);
+    //     response.end(JSON.stringify({ message: "sayonara" }));
+    //     return;
+    // }
 
     response.writeHead(404);
     response.end(JSON.stringify({ error: "not_found" }));

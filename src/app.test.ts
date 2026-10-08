@@ -64,15 +64,15 @@ test("GET /weather reports that the API is returning bye message", async () => {
   });
 });
 
-test("GET /sayonara reports that the API is returning sayonara message", async () => {
-  await withApp(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/sayonara`);
 
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { message: "sayonara" });
-  });
-});
+// test("GET /sayonara reports that the API is returning sayonara message", async () => {
+//   await withApp(async (baseUrl) => {
+//     const response = await fetch(`${baseUrl}/sayonara`);
 
+//     assert.equal(response.status, 200);
+//     assert.deepEqual(await response.json(), { message: "sayonara" });
+//   });
+// });
 test("unknown routes return a JSON 404", async () => {
   await withApp(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/missing`);
