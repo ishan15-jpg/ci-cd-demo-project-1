@@ -16,23 +16,23 @@ export function createApp() {
         return;
     }
 
-    // if(request.method === "GET" && request.url === "/bye"){
-    //     response.writeHead(200);
-    //     response.end(JSON.stringify({ message: "bye" }));
-    //     return;
-    // }
+    if(request.method === "GET" && request.url === "/bye"){
+        response.writeHead(200);
+        response.end(JSON.stringify({ message: "bye" }));
+        return;
+    }
 
-    // if(request.method === "GET" && request.url === "/weather"){
-    //     response.writeHead(200);
-    //     response.end(JSON.stringify({ message: "sunny" }));
-    //     return;
-    // }
+    if(request.method === "GET" && request.url === "/weather"){
+        response.writeHead(200);
+        response.end(JSON.stringify({ message: "sunny" }));
+        return;
+    }
 
-    // if(request.method === "GET" && request.url === "/sayonara"){
-    //     response.writeHead(200);
-    //     response.end(JSON.stringify({ message: "sayonara" }));
-    //     return;
-    // }
+    if(request.method === "GET" && request.url === "/sayonara"){
+        response.writeHead(200);
+        response.end(JSON.stringify({ message: "sayonara" }));
+        return;
+    }
 
     response.writeHead(404);
     response.end(JSON.stringify({ error: "not_found" }));
