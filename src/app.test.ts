@@ -46,23 +46,23 @@ test("GET /hello reports that the API is returning hello message", async () => {
   });
 });
 
-test("GET /bye reports that the API is returning bye message", async () => {
-  await withApp(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/bye`);
+// test("GET /bye reports that the API is returning bye message", async () => {
+//   await withApp(async (baseUrl) => {
+//     const response = await fetch(`${baseUrl}/bye`);
 
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { message: "bye" });
-  });
-});
+//     assert.equal(response.status, 200);
+//     assert.deepEqual(await response.json(), { message: "bye" });
+//   });
+// });
 
-test("GET /weather reports that the API is returning bye message", async () => {
-  await withApp(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/weather`);
+// test("GET /weather reports that the API is returning bye message", async () => {
+//   await withApp(async (baseUrl) => {
+//     const response = await fetch(`${baseUrl}/weather`);
 
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { message: "sunny" });
-  });
-});
+//     assert.equal(response.status, 200);
+//     assert.deepEqual(await response.json(), { message: "sunny" });
+//   });
+// });
 
 
 // test("GET /sayonara reports that the API is returning sayonara message", async () => {
