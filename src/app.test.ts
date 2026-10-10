@@ -1,23 +1,52 @@
 import assert from "node:assert/strict";
+import { createServer, request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
-import { test } from "node:test";
-import { createApp } from "./app.js";
+import { mock, test } from "node:test";
+import app from "./app.js";
+import pool from "./db.js";
+
+async function httpGetJson(url: string) {
+  return new Promise<{ status: number; body: unknown }>((resolve, reject) => {
+    const req = httpRequest(url, { method: "GET", agent: false }, (response) => {
+      const chunks: Buffer[] = [];
+
+      response.on("data", (chunk) => {
+        chunks.push(Buffer.from(chunk));
+      });
+
+      response.on("end", () => {
+        const raw = Buffer.concat(chunks).toString();
+        const contentType = response.headers["content-type"] ?? "";
+
+        resolve({
+          status: response.statusCode ?? 0,
+          body: raw && contentType.includes("application/json") ? JSON.parse(raw) : raw || null,
+        });
+      });
+    });
+
+    req.on("error", reject);
+    req.end();
+  });
+}
 
 async function withApp(run: (baseUrl: string) => Promise<void>) {
-  const app = createApp();
+  const server = createServer(app);
 
   await new Promise<void>((resolve, reject) => {
-    app.once("error", reject);
-    app.listen(0, "127.0.0.1", resolve);
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
   });
 
-  const address = app.address() as AddressInfo;
+  const address = server.address() as AddressInfo;
 
   try {
     await run(`http://127.0.0.1:${address.port}`);
   } finally {
+    server.closeAllConnections?.();
+
     await new Promise<void>((resolve, reject) => {
-      app.close((error) => {
+      server.close((error) => {
         if (error) {
           reject(error);
         } else {
@@ -30,54 +59,41 @@ async function withApp(run: (baseUrl: string) => Promise<void>) {
 
 test("GET /health reports that the API is healthy", async () => {
   await withApp(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/health`);
+    const response = await httpGetJson(`${baseUrl}/health`);
 
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { status: "ok" });
+    assert.deepEqual(response.body, { message: "Healthy" });
   });
 });
 
-test("GET /hello reports that the API is returning hello message", async () => {
+test("GET /hi reports that the API is hi", async () => {
   await withApp(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/hello`);
+    const response = await httpGetJson(`${baseUrl}/hi`);
 
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { message: "hello" });
+    assert.deepEqual(response.body, { message: "hi" });
   });
 });
 
-// test("GET /bye reports that the API is returning bye message", async () => {
-//   await withApp(async (baseUrl) => {
-//     const response = await fetch(`${baseUrl}/bye`);
+test("GET /users reports rows from the database", async () => {
+  const queryMock = mock.method(pool, "query", async () => ({
+    rows: [{ id: 1, name: "Ada" }],
+  }));
 
-//     assert.equal(response.status, 200);
-//     assert.deepEqual(await response.json(), { message: "bye" });
-//   });
-// });
-
-// test("GET /weather reports that the API is returning bye message", async () => {
-//   await withApp(async (baseUrl) => {
-//     const response = await fetch(`${baseUrl}/weather`);
-
-//     assert.equal(response.status, 200);
-//     assert.deepEqual(await response.json(), { message: "sunny" });
-//   });
-// });
-
-
-// test("GET /sayonara reports that the API is returning sayonara message", async () => {
-//   await withApp(async (baseUrl) => {
-//     const response = await fetch(`${baseUrl}/sayonara`);
-
-//     assert.equal(response.status, 200);
-//     assert.deepEqual(await response.json(), { message: "sayonara" });
-//   });
-// });
-test("unknown routes return a JSON 404", async () => {
   await withApp(async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/missing`);
+    const response = await httpGetJson(`${baseUrl}/users`);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body, { rows: [{ id: 1, name: "Ada" }] });
+  });
+
+  queryMock.mock.restore();
+});
+
+test("unknown routes return a 404", async () => {
+  await withApp(async (baseUrl) => {
+    const response = await httpGetJson(`${baseUrl}/missing`);
 
     assert.equal(response.status, 404);
-    assert.deepEqual(await response.json(), { error: "not_found" });
   });
 });

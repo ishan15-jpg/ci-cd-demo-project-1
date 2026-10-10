@@ -1,8 +1,38 @@
-import eslint from "@eslint/js";
-import tseslint from "typescript-eslint";
+import js from '@eslint/js';
+import { defineConfig } from 'eslint/config';
+import tseslint from 'typescript-eslint';
 
-export default tseslint.config(
-  { ignores: ["dist/**"] },
-  eslint.configs.recommended,
-  ...tseslint.configs.recommended,
-);
+export default defineConfig([
+  {
+    files: ['**/*.{js,cjs,mjs,ts}'],
+    extends: [js.configs.recommended, tseslint.configs.recommended],
+  },
+  {
+    files: ['**/*.{js,cjs,mjs}'],
+    languageOptions: {
+      globals: {
+        Buffer: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        console: 'readonly',
+        exports: 'readonly',
+        global: 'readonly',
+        module: 'readonly',
+        process: 'readonly',
+        require: 'readonly',
+      },
+    },
+  },
+  {
+    files: ['**/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs',
+    },
+  },
+  {
+    files: ['**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'warn',
+    },
+  },
+]);

@@ -3,3 +3,8 @@ dist/
 .env
 Dockerfile
 .dockerignore
+.github/
+.gitignore
+docker-compose.yaml
+*.config.js
+*.conf

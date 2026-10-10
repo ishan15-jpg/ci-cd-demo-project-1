@@ -1,17 +1,17 @@
-# Build Stage
+# ----- Builder Stage -----
 FROM node:24 AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY package*.json .
 
 RUN npm ci
 
-COPY . .
+copy . .
 
 RUN npm run build
 
-# Production Stage
+# ----- Production Stage ------
 FROM node:24-alpine
 
 WORKDIR /app
@@ -19,20 +19,20 @@ WORKDIR /app
 RUN addgroup -S appgroup && \
     adduser -S appuser -G appgroup
 
-RUN apk add --no-cache curl 
+RUN apk add --no-cache curl
 
-COPY package*.json ./
+COPY package*.json .
 
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 
-RUN chown appuser:appgroup -R /app
+COPY ./migrations ./migrations
+
+COPY ./knexfile.js ./knexfile.js
+
+RUN chown appuser:appgroup -R /app 
 
 USER appuser
 
-EXPOSE 8000
-
-ENTRYPOINT [ "node" ]
-
-CMD [ "dist/server.js" ]
+CMD ["node", "dist/server.js"]
