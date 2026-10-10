@@ -16,7 +16,7 @@ app.get('/users', async (_,res) => {
       rows: result.rows
     })
   }catch(e: any){
-    res.status(500).send(e.message)
+    res.status(500).send((e as any).message)
   }
 })
 
