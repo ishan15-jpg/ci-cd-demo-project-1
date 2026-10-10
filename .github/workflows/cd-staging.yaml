@@ -1,0 +1,98 @@
+name: Staging CD workflow
+
+on: 
+    push: 
+        branches:
+            - develop
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+
+        environment: staging
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+
+            - name: Copy docker-compose.yaml and nginx.conf files to server
+              uses: appleboy/scp-action@v1
+              with: 
+                host: ${{ secrets.SERVER_IP }}
+                username: ${{ secrets.SERVER_USER }}
+                key: ${{ secrets.SERVER_SSH_KEY }}
+                source: "docker-compose.yaml, nginx.conf"
+                target: "/home/ubuntu/app"
+
+            - name: Deploy application to staging server
+              uses: appleboy/ssh-action@v1
+              env:
+                APPLICATION_PORT: ${{ secrets.APPLICATION_PORT }}
+                AWS_REGION: ${{ secrets.AWS_REGION }}
+                AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+                IMAGE_TAG: ${{ github.sha }}
+                POSTGRES_HOST: postgres
+                POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+                POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+                POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+                POSTGRES_PORT: 5432
+              with: 
+                host: ${{ secrets.SERVER_IP }}
+                username: ${{ secrets.SERVER_USER }}
+                key: ${{ secrets.SERVER_SSH_KEY }}
+                envs: APPLICATION_PORT, AWS_REGION, AWS_ACCOUNT_ID, IMAGE_TAG, POSTGRES_USER, POSTGRES_DB, POSTGRES_PASSWORD
+                script: |
+                    # 1. Move to /home/ubuntu/app
+                    cd /home/ubuntu/app
+
+                    # 2. Export variables
+                    export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+                    export ECR_REPOSITORY=my-app
+                    export IMAGE_TAG=$IMAGE_TAG
+
+                    # 3. Create .env file
+                    echo -e \
+                        "PORT=$APPLICATION_PORT" \
+                        "\nPOSTGRES_HOST=$POSTGRES_HOST"
+                        "\nPOSTGRES_USER=$POSTGRES_USER" \
+                        "\nPOSTGRES_DB=$POSTGRES_DB" \
+                        "\nPOSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+                        "\nPOSTGRES_PORT=$POSTGRES_PORT" \
+                        > .env
+
+                    # 4. Login docker to AWS ECR registry
+                    aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+                    # 5. Stop existing running container
+                    docker stop node || true
+                    docker rm node || true
+
+                    # 6. Pull  the latest image
+                    docker compose pull
+
+                    # 7. Run the migration container
+                    docker run --rm \
+                        --network private-net \
+                        --env-file ./.env \
+                        $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+                        npx knex migrate:latest 
+
+                    # 8. Start the services
+                    docker compose up -d
+
+                    # 7. Perform health check
+                    echo "Deploying application..."
+                    for i in {1..11}; do 
+                        if [ "$(docker inspect --format '{{.State.Health.Status}}' api-server)" == "healthy" ]; then
+                            echo "Deployment successfull..."
+                            exit 0
+                        fi
+                        echo "Retrying deployment! $((10-i)) retries left..."
+                    done
+                    echo "Deployment failed! Max retries exceeded..."
+                    docker compose logs
+                    exit 1

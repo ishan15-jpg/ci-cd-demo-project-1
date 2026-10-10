@@ -1,197 +1,121 @@
-name: Practice workflow
+name: CI workflow
 
-on:
+on: 
   push:
     branches:
       - develop
-    tags:
-      - 'v*'
+      - main
+    # tags:
+    # - 'v*'
   pull_request:
+    branches:
+      - develop
 
 concurrency:
-    group: ${{ github.env }}-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-    lint:
-      if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+  lint:
+    runs-on: ubuntu-latest
 
-      runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
 
-      steps:
-          - name: Checkout code
-            uses: actions/checkout@v7
+      - name: Setup node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+          cache: npm
 
-          - name: Setup node
-            uses: actions/setup-node@v7
-            with:
-              node-version: 24.x
-              cache: npm
-
-          - name: Install dependencies
-            run: npm ci
-
-          - name: Type checking
-            run: npx tsc --noEmit
-
-          - name: Run linting
-            run: npm run lint
-
-    test: 
-      if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-
-      runs-on: ubuntu-latest
-
-      strategy:
-          matrix:
-              node-version: [18.x, 20.x, 22.x, 24.x]
-
-      steps:
-          - name: Checkout code
-            uses: actions/checkout@v7
-
-          - name: Setup node
-            uses: actions/setup-node@v7
-            with:
-              node-version: ${{ matrix.node-version }}
-
-          - name: Install dependencies
-            run: npm ci
-
-          - name: Run test 
-            run: npm run test
-
-          - name: Upload test result as artifact
-            uses: actions/upload-artifact@v7
-            with:
-              path: 'test-result.txt'
-
-    build:       
-      needs:
-        - lint
-        - test
-  
-      if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      - name: Install dependencies
+        run: npm ci
       
-      runs-on: ubuntu-latest
+      - name: Perform type checking
+        run: npx tsc --noEmit
 
-      steps:
-          - name: Checkout code
-            uses: actions/checkout@v7
+      - name: Perform linting
+        run: npm run lint
 
-          - name: Setup node
-            uses: actions/setup-node@v7
-            with:
-              node-version: 24.x
+  test: 
+    runs-on: ubuntu-latest
 
-          - name: Install dependencies
-            run: npm ci
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x, 22.x, 24.x]
 
-          - name: Build the application
-            run: npm run build
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
 
-    build-and-push:
-      needs: build
+      - name: Setup node
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
 
-      if: github.event_name == 'push' &&  github.ref == 'refs/heads/develop' 
+      - name: Install dependencies
+        run: npm ci
 
-      runs-on: ubuntu-latest
+      - name: Run test
+        run: npm run test
 
-      permissions:
-        id-token: write
-        contents: read
+  build: 
+    needs:
+      - lint
+      - test
 
-      steps:
-        - name: Checkout code
-          uses: actions/checkout@v7
+    runs-on: ubuntu-latest
 
-        - name: Setup node
-          uses: actions/setup-node@v7
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
 
-        - name: Configure AWS with credentials
-          uses: aws-actions/configure-aws-credentials@v6
-          with: 
-            aws-region: ${{ secrets.AWS_REGION }}
-            role-to-assume: ${{ secrets.AWS_ROLE }}
-        
-        - name: Login to AWS ECR 
-          id: ecr-login
-          uses: aws-actions/amazon-ecr-login@v1
+      - name: Setup node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+          cache: npm
 
-        - name: Build, tag and push image
-          env:
-            ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-            ECR_REPOSITORY: my-app
-            IMAGE_TAG: ${{ github.sha }} 
-          run: |
-            docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-            docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      - name: Install dependencies
+        run: npm ci
 
-    deploy:
-      needs: build-and-push
+      - name: Build the application
+        run: npm run build
 
-      if: always() && github.event_name == 'push' && (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
-      
-      environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'prod' || 'staging' }}
-      
-      runs-on: ubuntu-latest
+  build-and-push:
+    needs: build
 
-      steps:
-        - name: Checkout code
-          uses: actions/checkout@v7
+    runs-on: ubuntu-latest
 
-        - name: Copy docker-compose.yaml and nginx.conf to server
-          uses: appleboy/scp-action@v1
-          with: 
-            host: ${{ secrets.SERVER_IP }}
-            username: ${{ secrets.SERVER_USER }}
-            key: ${{ secrets.SERVER_SSH_KEY }}
-            source: "docker-compose.yaml, nginx.conf"
-            target: "/home/ubuntu/app"
-          
-        - name: Deploy the application to server
-          uses: appleboy/ssh-action@v1
-          env:
-            AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-            AWS_REGION: ${{ secrets.AWS_REGION }}
-            APPLICATION_PORT: ${{ secrets.APPLICATION_PORT }}
-            IMAGE_TAG: ${{ github.sha }}
-          with: 
-            host: ${{ secrets.SERVER_IP }}
-            username: ${{ secrets.SERVER_USER }}
-            key: ${{ secrets.SERVER_SSH_KEY }}
-            envs: AWS_ACCOUNT_ID, AWS_REGION, APPLICATION_PORT, IMAGE_TAG
-            script: |
-                # 1. Change to directory
-                cd /home/ubuntu/app
+    permissions:
+      id-token: write
+      contents: read
 
-                # 2. Export variables
-                export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-                export ECR_REPOSITORY=my-app
-                export IMAGE_TAG=$IMAGE_TAG
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
 
-                # 3. Create .env file
-                echo "PORT=$APPLICATION_PORT" > .env
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE }}
+          region: ${{ secrets.AWS_REGION }}
 
-                # 4. Login docker to registry
-                aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+      - name: Login to AWS ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v1
 
-                # 5. Stop existing running container
-                docker stop api-server || true
-                docker rm api-server || true
+      - name: Build, tag and push to ECR registry
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+          ECR_REPOSITORY: my-app
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-                # 6. Pull new image
-                docker compose pull 
-                docker compose up -d
-
-                # 7. Health check 
-                echo "Deploying application..."
-                for i in {1..10}; do
-                    if [ "$(docker inspect --format '{{.State.Health.Status}}' api-server)" == "healthy" ]; then
-                        echo "Deployment successfull..."
-                        exit 0
-                    fi
-                    echo "Retrying! $((10-i)) retries left..."
-                done
-                echo "Deployment failed! Max retries exceeded..."
-                docker compose logs
-                exit 1
+  deploy-staging:
+    needs: build-and-push
+    uses: ./.github/workflows/cd-staging.yaml
