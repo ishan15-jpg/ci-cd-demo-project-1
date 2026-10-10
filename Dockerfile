@@ -29,8 +29,6 @@ COPY --from=builder /app/dist ./dist
 
 COPY ./migrations ./migrations
 
-COPY ./knexfile.js ./knexfile.js
-
 RUN chown appuser:appgroup -R /app 
 
 USER appuser
