@@ -9,6 +9,12 @@ app.get('/health', (_,res) => {
   })
 })
 
+app.get('/hi', (_,res) => {
+  res.status(200).json({
+    message: "hi"
+  })
+})
+
 app.get('/users', async (_,res) => {
   try{
     const result = await pool.query('SELECT * FROM users;');
