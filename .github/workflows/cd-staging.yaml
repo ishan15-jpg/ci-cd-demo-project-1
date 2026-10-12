@@ -92,6 +92,7 @@ jobs:
 
                     # 3. Create .env file
                     cat <<EOF > .env
+                    NODE_ENV=staging
                     PORT=$APPLICATION_PORT
                     NGINX_PORT=$NGINX_PORT
                     DATABASE_URL=$DATABASE_URL
