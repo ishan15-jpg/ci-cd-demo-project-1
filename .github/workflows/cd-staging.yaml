@@ -1,9 +1,6 @@
 name: Staging CD workflow
 
 on: 
-    push: 
-        branches:
-            - develop
     workflow_call:
 
 concurrency:
