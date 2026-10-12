@@ -1,14 +1,13 @@
 name: CI workflow
 
 on: 
-  push:
+  push: 
     branches:
       - develop
-      - main
   pull_request:
     branches:
       - develop
-
+      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,6 +16,8 @@ concurrency:
 jobs:
   lint:
     runs-on: ubuntu-latest
+
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout repository
@@ -39,6 +40,8 @@ jobs:
 
   test: 
     runs-on: ubuntu-latest
+
+    if: github.event_name == 'pull_request'
 
     strategy:
       matrix:
@@ -67,6 +70,8 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    if: github.event_name == 'pull_request'
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -85,6 +90,8 @@ jobs:
 
   build-and-push:
     needs: build
+
+    if: github.event_name == 'push'
 
     runs-on: ubuntu-latest
 
@@ -115,6 +122,7 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-  deploy-staging:
+  deploy:
     needs: build-and-push
+    if: github.event_name == 'push'
     uses: ./.github/workflows/cd-staging.yaml

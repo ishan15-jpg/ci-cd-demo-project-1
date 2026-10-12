@@ -11,13 +11,13 @@
     "lint": "eslint src",
     "start": "node dist/server.js",
     "test": "tsx --test src/app.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "migrate": "node-pg-migrate"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/dotenv": "^6.1.1",
     "@types/express": "^5.0.6",
-    "@types/knex": "^0.15.2",
     "@types/node": "^22.20.4",
     "@types/pg": "^8.23.1",
     "eslint": "^10.12.0",
@@ -28,7 +28,7 @@
   "dependencies": {
     "dotenv": "^18.0.4",
     "express": "^5.2.1",
-    "knex": "^3.3.0",
+    "node-pg-migrate": "^9.0.0",
     "pg": "^8.23.1"
   }
 }
