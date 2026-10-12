@@ -16,6 +16,18 @@ services:
     networks:
       - private-net
 
+  db-migration:
+    container_name: db-migration
+    image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+    env_file: ./.env
+    networks:
+      - private-net
+    restart: "no"
+    command: ["npm", "run", "migrate", "up"]
+    depends-on:
+      postgres:
+        condition: service_healthy
+
   node:
     container_name: node
     image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
