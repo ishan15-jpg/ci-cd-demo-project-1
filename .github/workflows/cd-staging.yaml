@@ -125,7 +125,7 @@ jobs:
                     # 7. Perform health check
                     echo "Deploying application..."
                     for i in {1..11}; do 
-                        if [ "$(docker inspect --format '{{.State.Health.Status}}' api-server)" == "healthy" ]; then
+                        if [ "$(docker inspect --format '{{.State.Health.Status}}' node)" == "healthy" ]; then
                             echo "Deployment successfull..."
                             exit 0
                         fi
