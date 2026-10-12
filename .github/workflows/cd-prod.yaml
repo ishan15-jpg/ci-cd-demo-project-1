@@ -19,7 +19,7 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v7
 
-            - name: Copy docker-compose.yaml and nginx.conf files to server
+            - name: Copy docker-compose.yaml and nginx.conf files to production server
               uses: appleboy/scp-action@v1
               with: 
                 host: ${{ secrets.SERVER_IP }}
@@ -28,7 +28,7 @@ jobs:
                 source: "docker-compose.yaml, nginx.conf"
                 target: "/home/ubuntu/app"
 
-            - name: Deploy application to staging server
+            - name: Deploy application to production server
               uses: appleboy/ssh-action@v1
               env:
                 AWS_REGION: ${{ secrets.AWS_REGION }}
