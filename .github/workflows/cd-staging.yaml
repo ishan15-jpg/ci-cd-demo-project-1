@@ -112,17 +112,17 @@ jobs:
                     # 6. Pull  the latest image
                     docker compose pull
 
-                    # 7. Run the migration container
+                    # 7. Start the services
+                    docker compose up -d
+
+                    # 8. Run the migration container
                     docker run --rm \
                         --network private-net \
                         --env-file ./.env \
                         $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
                         npm run migrate up
 
-                    # 8. Start the services
-                    docker compose up -d
-
-                    # 7. Perform health check
+                    # 9. Perform health check
                     echo "Deploying application..."
                     for i in {1..11}; do 
                         if [ "$(docker inspect --format '{{.State.Health.Status}}' node)" == "healthy" ]; then
