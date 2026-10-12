@@ -89,9 +89,7 @@ jobs:
         run: npm run build
 
   build-and-push:
-    needs: build
-
-    if: always() && github.event_name == 'push'
+    if: github.event_name == 'push'
 
     runs-on: ubuntu-latest
 
