@@ -46,7 +46,7 @@ jobs:
                 host: ${{ secrets.SERVER_IP }}
                 username: ${{ secrets.SERVER_USER }}
                 key: ${{ secrets.SERVER_SSH_KEY }}
-                envs: APPLICATION_PORT, AWS_REGION, AWS_ACCOUNT_ID, IMAGE_TAG, POSTGRES_USER, POSTGRES_DB, POSTGRES_PASSWORD
+                envs: AWS_REGION, AWS_ACCOUNT_ID, IMAGE_TAG, APPLICATION_PORT, NGINX_PORT, DATABASE_URL, POSTGRES_HOST, POSTGRES_USER, POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_PORT
                 script: |
                     # 1. Move to /home/ubuntu/app
                     cd /home/ubuntu/app
@@ -91,7 +91,7 @@ jobs:
                     # 7. Perform health check
                     echo "Deploying application..."
                     for i in {1..11}; do 
-                        if [ "$(docker inspect --format '{{.State.Health.Status}}' api-server)" == "healthy" ]; then
+                        if [ "$(docker inspect --format '{{.State.Health.Status}}' node)" == "healthy" ]; then
                             echo "Deployment successfull..."
                             exit 0
                         fi
