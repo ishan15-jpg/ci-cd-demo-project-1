@@ -1,4 +1,4 @@
-name: Staging CD workflow
+name: Production CD workflow
 
 on: 
     push: 
@@ -13,7 +13,7 @@ jobs:
     deploy:
         runs-on: ubuntu-latest
 
-        environment: staging
+        environment: prod
 
         steps:
             - name: Checkout repository
