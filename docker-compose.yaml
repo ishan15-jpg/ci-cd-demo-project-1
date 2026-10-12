@@ -24,7 +24,7 @@ services:
       - private-net
     restart: "no"
     command: ["npm", "run", "migrate", "up"]
-    depends-on:
+    depends_on:
       postgres:
         condition: service_healthy
 
@@ -42,6 +42,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      db-migration:
+        condition: service_completed_successfully
     networks:
       - shared-net
       - private-net
