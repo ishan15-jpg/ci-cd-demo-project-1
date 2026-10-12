@@ -1,13 +1,47 @@
 name: Staging CD workflow
 
 on: 
-    workflow_call:
+    push:
+        branches:
+            - develop
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
 jobs:
+    build-and-push:
+        runs-on: ubuntu-latest
+
+        environment: staging
+
+        permissions:
+            id-token: write
+            contents: read
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v6
+              with:
+                role-to-assume: ${{ secrets.AWS_ROLE }}
+                region: ${{ secrets.AWS_REGION }}
+
+            - name: Login to AWS ECR
+              id: ecr-login
+              uses: aws-actions/amazon-ecr-login@v1
+
+            - name: Build, tag and push to ECR registry
+              env:
+                ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+                ECR_REPOSITORY: my-app
+                IMAGE_TAG: ${{ github.sha }}
+              run: |
+                docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+                docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
     deploy:
         runs-on: ubuntu-latest
 
