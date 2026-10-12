@@ -91,7 +91,7 @@ jobs:
   build-and-push:
     needs: build
 
-    if: github.event_name == 'push'
+    if: always() && github.event_name == 'push'
 
     runs-on: ubuntu-latest
 
