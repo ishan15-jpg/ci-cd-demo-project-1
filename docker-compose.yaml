@@ -1,32 +1,10 @@
 services:
-  postgres:
-    container_name: postgres
-    image: postgres:18-alpine
-    env_file: ./.env
-    ports:
-      - "$POSTGRES_PORT"
-    volumes:
-      - pg_data:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - private-net
-
   db-migration:
     container_name: db-migration
     image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
     env_file: ./.env
-    networks:
-      - private-net
     restart: "no"
     command: ["npm", "run", "migrate", "up"]
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   node:
     container_name: node
@@ -40,13 +18,10 @@ services:
       retries: 3
       timeout: 3s
     depends_on:
-      postgres:
-        condition: service_healthy
       db-migration:
         condition: service_completed_successfully
     networks:
       - shared-net
-      - private-net
 
   nginx:
     container_name: nginx
@@ -66,10 +41,3 @@ networks:
   shared-net:
     name: shared-net
     driver: bridge
-  private-net:
-    name: private-net
-    driver: bridge
-
-volumes:
-  pg_data:
-    name: pg_data
