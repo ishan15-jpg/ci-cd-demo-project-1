@@ -57,16 +57,17 @@ jobs:
                     export IMAGE_TAG=$IMAGE_TAG
 
                     # 3. Create .env file
-                    echo -e \
-                        "PORT=$APPLICATION_PORT" \
-                        "\nNGINX_PORT=$NGINX_PORT" \
-                        "\nDATABASE_URL=$DATABASE_URL" \
-                        "\nPOSTGRES_HOST=$POSTGRES_HOST"
-                        "\nPOSTGRES_USER=$POSTGRES_USER" \
-                        "\nPOSTGRES_DB=$POSTGRES_DB" \
-                        "\nPOSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
-                        "\nPOSTGRES_PORT=$POSTGRES_PORT" \
-                        > .env
+                    # 3. Create .env file
+                    cat <<EOF > .env
+                    PORT=$APPLICATION_PORT
+                    NGINX_PORT=$NGINX_PORT
+                    DATABASE_URL=$DATABASE_URL
+                    POSTGRES_HOST=$POSTGRES_HOST
+                    POSTGRES_USER=$POSTGRES_USER
+                    POSTGRES_DB=$POSTGRES_DB
+                    POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+                    POSTGRES_PORT=$POSTGRES_PORT
+                    EOF
 
                     # 4. Login docker to AWS ECR registry
                     aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
