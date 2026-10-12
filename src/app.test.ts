@@ -66,6 +66,15 @@ test("GET /health reports that the API is healthy", async () => {
   });
 });
 
+test("GET /hi reports that the API is hi", async () => {
+  await withApp(async (baseUrl) => {
+    const response = await httpGetJson(`${baseUrl}/hi`);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body, { message: "hi" });
+  });
+});
+
 test("GET /users reports rows from the database", async () => {
   const queryMock = mock.method(pool, "query", async () => ({
     rows: [{ id: 1, name: "Ada" }],

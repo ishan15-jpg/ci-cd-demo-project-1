@@ -9,9 +9,9 @@ app.get('/health', (_,res) => {
   })
 })
 
-app.get('/sayonara', (_,res) => {
+app.get('/hi', (_,res) => {
   res.status(200).json({
-    message: "sayonara"
+    message: "hi"
   })
 })
 
