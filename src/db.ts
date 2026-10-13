@@ -1,6 +1,5 @@
 import { Pool } from "pg";
 import { readFileSync } from "node:fs";
-import path from "node:path";
 
 const pool = new Pool({
     connectionString: process.env['DATABASE_URL'],
