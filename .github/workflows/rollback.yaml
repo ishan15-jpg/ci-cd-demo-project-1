@@ -1,0 +1,63 @@
+name: Production Rollback Workflow
+
+on: 
+    workflow_dispatch:
+        inputs:
+            commit-sha:
+                description: Commit SHA to rollback to
+                required: true
+                type: string
+
+jobs:
+    deploy:
+        runs-on: ubuntu-latest
+
+        environment: prod
+
+        steps:
+            - name: Deploy stable version to prod server
+              uses: appleboy/ssh-action@v1
+              env:
+                AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+                AWS_REGION: ${{ secrets.AWS_REGION }}
+                IMAGE_TAG: ${{ inputs.commit-sha }}
+              with:
+                host: ${{ secrets.SERVER_IP }}
+                username: ${{ secrets.SERVER_USER }}
+                key: ${{ secrets.SERVER_SSH_KEY }}
+                envs: AWS_ACCOUNT_ID, AWS_REGION, IMAGE_TAG
+                script: |
+                    # 1. Change directory to /home/ubunutu/app
+                    cd /home/ubuntu/app
+
+                    # 2. Export environment variables
+                    export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+                    export ECR_REPOSITORY=my-app
+                    export IMAGE_TAG=$IMAGE_TAG
+
+                    # 3. Docker login to AWS ECR private registry
+                    aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+                    # 4. Stop the running container
+                    docker stop node || true
+                    docker rm node || true
+
+                    # 3. Pull the stable image
+                    docker compose pull 
+
+                    # 4. Execute docker compose
+                    docker compose up -d
+
+                    # 5. Health check 
+                    echo "Deploying stable version..."
+                    for i in {1..11}; do
+                        if [ "$(docker inspect --format '{{.State.Health.Status}}' node)" == "healthy" ]; then
+                            echo "Deployment successfull..."
+                            exit 0
+                        fi
+                        echo "Retrying deployment! $((10-i)) retries left..."
+                        sleep 3
+                    done
+                    echo "Deployment failed! Maximum retries exceeded..."
+                    docker compose logs
+                    exit 1
