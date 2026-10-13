@@ -16,11 +16,18 @@ async function connectDB() {
         const res = await pool.query('SELECT version()');
         console.log(res.rows[0].version);
     } catch (error) {
-        console.error('Database error:', error);
+        console.error('Database error: ', error);
         throw error;
-    } finally {
-        await pool.end();
     }
 }
 
-export { pool, connectDB }
+async function disconnectDB(){
+    try {
+        await pool.end()
+    }catch(error){
+        console.error('Database closing issue: ', error)
+        throw error
+    }
+}
+
+export { pool, connectDB, disconnectDB }
