@@ -14,7 +14,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Perform secret scanning
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+
   lint:
+    needs: gitleaks
+
     runs-on: ubuntu-latest
 
     if: github.event_name == 'pull_request'
@@ -39,6 +55,8 @@ jobs:
         run: npm run lint
 
   test: 
+    needs: gitleaks
+
     runs-on: ubuntu-latest
 
     if: github.event_name == 'pull_request'
