@@ -1,17 +1,50 @@
 name: Staging CD workflow
 
 on: 
-    push: 
+    push:
         branches:
             - develop
-    workflow_call:
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
 jobs:
+    build-and-push:
+        runs-on: ubuntu-latest
+
+        environment: staging
+
+        permissions:
+            id-token: write
+            contents: read
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v6
+              with:
+                role-to-assume: ${{ secrets.AWS_ROLE }}
+                aws-region: ${{ secrets.AWS_REGION }}
+
+            - name: Login to AWS ECR
+              id: ecr-login
+              uses: aws-actions/amazon-ecr-login@v1
+
+            - name: Build, tag and push to ECR registry
+              env:
+                ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+                ECR_REPOSITORY: my-app
+                IMAGE_TAG: ${{ github.sha }}
+              run: |
+                docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+                docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
     deploy:
+        needs: build-and-push
+
         runs-on: ubuntu-latest
 
         environment: staging
@@ -20,7 +53,7 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v7
 
-            - name: Copy docker-compose.yaml and nginx.conf files to server
+            - name: Copy docker-compose.yaml and nginx.conf files to staging server
               uses: appleboy/scp-action@v1
               with: 
                 host: ${{ secrets.SERVER_IP }}
@@ -38,16 +71,11 @@ jobs:
                 APPLICATION_PORT: ${{ secrets.APPLICATION_PORT }}
                 NGINX_PORT: ${{ secrets.NGINX_PORT }}
                 DATABASE_URL: ${{ secrets.DATABASE_URL }}
-                POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
-                POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-                POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-                POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-                POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
               with: 
                 host: ${{ secrets.SERVER_IP }}
                 username: ${{ secrets.SERVER_USER }}
                 key: ${{ secrets.SERVER_SSH_KEY }}
-                envs: APPLICATION_PORT, AWS_REGION, AWS_ACCOUNT_ID, IMAGE_TAG, POSTGRES_USER, POSTGRES_DB, POSTGRES_PASSWORD
+                envs: AWS_REGION, AWS_ACCOUNT_ID, IMAGE_TAG, APPLICATION_PORT, NGINX_PORT, DATABASE_URL
                 script: |
                     # 1. Move to /home/ubuntu/app
                     cd /home/ubuntu/app
@@ -58,16 +86,13 @@ jobs:
                     export IMAGE_TAG=$IMAGE_TAG
 
                     # 3. Create .env file
-                    echo -e \
-                        "PORT=$APPLICATION_PORT" \
-                        "\nNGINX_PORT=$NGINX_PORT" \
-                        "\nDATABASE_URL=$DATABASE_URL" \
-                        "\nPOSTGRES_HOST=$POSTGRES_HOST"
-                        "\nPOSTGRES_USER=$POSTGRES_USER" \
-                        "\nPOSTGRES_DB=$POSTGRES_DB" \
-                        "\nPOSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
-                        "\nPOSTGRES_PORT=$POSTGRES_PORT" \
-                        > .env
+                    cat <<EOF > .env
+                    NODE_ENV=staging
+                    PORT=$APPLICATION_PORT
+                    NGINX_PORT=$NGINX_PORT
+                    DATABASE_URL=$DATABASE_URL
+                    AWS_REGION=$AWS_REGION
+                    EOF
 
                     # 4. Login docker to AWS ECR registry
                     aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
@@ -79,20 +104,13 @@ jobs:
                     # 6. Pull  the latest image
                     docker compose pull
 
-                    # 7. Run the migration container
-                    docker run --rm \
-                        --network private-net \
-                        --env-file ./.env \
-                        $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-                        npm run migrate up
-
-                    # 8. Start the services
+                    # 7. Start the services
                     docker compose up -d
 
-                    # 7. Perform health check
+                    # 8. Perform health check
                     echo "Deploying application..."
                     for i in {1..11}; do 
-                        if [ "$(docker inspect --format '{{.State.Health.Status}}' api-server)" == "healthy" ]; then
+                        if [ "$(docker inspect --format '{{.State.Health.Status}}' node)" == "healthy" ]; then
                             echo "Deployment successfull..."
                             exit 0
                         fi

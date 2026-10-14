@@ -1,20 +1,11 @@
 import "dotenv/config";
 import app from "./app.js";
 import { createServer } from "http";
-import pool from "./db.js";
+import { connectDB} from "./db.js";
 
 const server = createServer(app);
 
-const connectToDb = async () => {
-  try {
-    await pool.connect();
-  } catch (error) {
-    console.error(error)
-    process.exit(1)
-  }
-}
-
-connectToDb()
+connectDB();
 
 const port = Number(process.env.PORT ?? "3000");
 

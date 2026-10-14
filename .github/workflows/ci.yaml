@@ -1,13 +1,9 @@
 name: CI workflow
 
 on: 
-  push: 
-    branches:
-      - develop
   pull_request:
     branches:
       - develop
-      - main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -33,8 +29,6 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'pull_request'
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -58,8 +52,6 @@ jobs:
     needs: gitleaks
 
     runs-on: ubuntu-latest
-
-    if: github.event_name == 'pull_request'
 
     strategy:
       matrix:
@@ -88,8 +80,6 @@ jobs:
 
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'pull_request'
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -105,42 +95,3 @@ jobs:
 
       - name: Build the application
         run: npm run build
-
-  build-and-push:
-    needs: build
-
-    if: github.event_name == 'push'
-
-    runs-on: ubuntu-latest
-
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE }}
-          region: ${{ secrets.AWS_REGION }}
-
-      - name: Login to AWS ECR
-        id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v1
-
-      - name: Build, tag and push to ECR registry
-        env:
-          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          ECR_REPOSITORY: my-app
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-  deploy:
-    needs: build-and-push
-    if: github.event_name == 'push'
-    uses: ./.github/workflows/cd-staging.yaml

@@ -3,7 +3,7 @@ import { createServer, request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
 import { mock, test } from "node:test";
 import app from "./app.js";
-import pool from "./db.js";
+import { pool } from "./db.js";
 
 async function httpGetJson(url: string) {
   return new Promise<{ status: number; body: unknown }>((resolve, reject) => {
