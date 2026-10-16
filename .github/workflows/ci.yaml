@@ -1,13 +1,13 @@
 name: CI workflow
 
-on: 
-  push: 
-    branches:
-      - develop
+on:
   pull_request:
     branches:
-      - develop
       - main
+      - develop
+  push:
+    branches:
+      - develop
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,28 +18,45 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout the repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Perform secret scanning
+      - name: Check secrets leaks
         uses: gitleaks/gitleaks-action@v3
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ github.token }}
 
-  lint:
-    needs: gitleaks
-
+  dependency-check:
     runs-on: ubuntu-latest
 
-    if: github.event_name == 'pull_request'
-
     steps:
-      - name: Checkout repository
+      - name: Checkout the repository
         uses: actions/checkout@v7
 
-      - name: Setup node
+      - name: Setup the node environment
+        uses: actions/setup-node@v7
+        with: 
+          node-version: 24.x
+
+      - name: Run dependency check
+        run: npm audit --audit-level=high
+
+  lint:
+    needs:
+      - gitleaks
+      - dependency-check
+
+    if: github.event_name == 'pull_request'
+    
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v7
+
+      - name: Setup the node environment
         uses: actions/setup-node@v7
         with:
           node-version: 24.x
@@ -47,67 +64,71 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-      
+
       - name: Perform type checking
         run: npx tsc --noEmit
 
       - name: Perform linting
         run: npm run lint
-
-  test: 
-    needs: gitleaks
-
-    runs-on: ubuntu-latest
+  
+  test:
+    needs:
+      - gitleaks
+      - dependency-check
 
     if: github.event_name == 'pull_request'
+
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
         node-version: [18.x, 20.x, 22.x, 24.x]
 
     steps:
-      - name: Checkout repository
+      - name: Checkout the repository
         uses: actions/checkout@v7
 
-      - name: Setup node
+      - name: Setup the node environment
         uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run test
+      - name: Run test cases
         run: npm run test
 
-  build: 
+  build-and-test-image:
     needs:
       - lint
       - test
 
-    runs-on: ubuntu-latest
-
     if: github.event_name == 'pull_request'
 
+    runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
+      - name: Checkout the repository
         uses: actions/checkout@v7
 
-      - name: Setup node
-        uses: actions/setup-node@v7
+      - name: Build image from the Dockerfile
+        run: docker build -t image:latest .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
-          node-version: 24.x
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build the application
-        run: npm run build
+          image-ref: image:latest
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
 
   build-and-push:
-    needs: build
+    needs:
+      - gitleaks
+      - dependency-check
 
     if: github.event_name == 'push'
 
@@ -117,30 +138,47 @@ jobs:
       id-token: write
       contents: read
 
+    env: 
+      ECR_REPOSITORY: my-app
+      IMAGE_TAG: ${{ github.sha }}
+
     steps:
-      - name: Checkout repository
+      - name: Checkout the repository
         uses: actions/checkout@v7
 
-      - name: Configure AWS credentials
+      - name: Configure the AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
+          aws-region: ${{ secrets.AWS_REGION }}
           role-to-assume: ${{ secrets.AWS_ROLE }}
-          region: ${{ secrets.AWS_REGION }}
 
       - name: Login to AWS ECR
         id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v1
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag and push to ECR registry
+      - name: Build an image from the Dockerfile
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          ECR_REPOSITORY: my-app
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        run: docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'HIGH,CRITICAL'
+
+      - name: Push the image to ECR registry
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
   deploy:
     needs: build-and-push
+
     if: github.event_name == 'push'
+
     uses: ./.github/workflows/cd-staging.yaml
