@@ -1,87 +1,93 @@
-name: Production CD workflow
+name: Production deployment workflow
 
 on: 
-    push: 
-        tags:
-            - "v*"
+    push:
+        tags: "v*"
 
 concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
+permissions:
+    contents: read
+
+env:
+    ECR_REGISTRY: ${{ vars.ECR_REGISTRY }}
+    ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+    IMAGE_TAG: ${{ github.sha }}
+    AWS_ROLE: ${{ vars.AWS_ROLE }}
+    AWS_REGION: ${{ vars.AWS_REGION }}
+
 jobs:
     deploy:
         runs-on: ubuntu-latest
-
         environment: prod
-
         steps:
-            - name: Checkout repository
-              uses: actions/checkout@v7
+            - uses: actions/checkout@v7
 
-            - name: Copy docker-compose.yaml and nginx.conf files to production server
-              uses: appleboy/scp-action@v1
+            - uses: appleboy/scp-action@v1
               with: 
                 host: ${{ secrets.SERVER_IP }}
                 username: ${{ secrets.SERVER_USER }}
-                key: ${{ secrets.SERVER_SSH_KEY }}
-                source: "docker-compose.yaml, nginx.conf"
-                target: "/home/ubuntu/app"
-
-            - name: Deploy application to production server
-              uses: appleboy/ssh-action@v1
-              env:
-                AWS_REGION: ${{ secrets.AWS_REGION }}
-                AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-                IMAGE_TAG: ${{ github.sha }}
-                APPLICATION_PORT: ${{ secrets.APPLICATION_PORT }}
-                NGINX_PORT: ${{ secrets.NGINX_PORT }}
+                key: ${{ secrets.SERVER_SSH_KEY}}
+                source: 'docker-compose.yaml,nginx.conf'
+                target: '/home/ubuntu/app'
+            
+            - uses: appleboy/ssh-action@v1.2.5
+              env: 
+                APPLICATION_PORT: ${{ vars.APPLICATION_PORT }}
+                NGINX_PORT: ${{ vars.NGINX_PORT }}
                 DATABASE_URL: ${{ secrets.DATABASE_URL }}
               with: 
                 host: ${{ secrets.SERVER_IP }}
                 username: ${{ secrets.SERVER_USER }}
                 key: ${{ secrets.SERVER_SSH_KEY }}
-                envs: AWS_REGION, AWS_ACCOUNT_ID, IMAGE_TAG, APPLICATION_PORT, NGINX_PORT, DATABASE_URL
+                envs: ECR_REGISTRY, ECR_REPOSITORY, IMAGE_TAG, APPLICATION_PORT, NGINX_PORT, DATABASE_URL, AWS_REGION
                 script: |
-                    # 1. Move to /home/ubuntu/app
+                    # 1. Change directory
                     cd /home/ubuntu/app
 
                     # 2. Export variables
-                    export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-                    export ECR_REPOSITORY=my-app
+                    export ECR_REGISTRY=$ECR_REGISTRY
+                    export ECR_REPOSITORY=$ECR_REPOSITORY
                     export IMAGE_TAG=$IMAGE_TAG
 
-                    # 3. Create .env file
+                    # 3. Create .env
                     cat <<EOF > .env
-                    NODE_ENV=prod
                     PORT=$APPLICATION_PORT
                     NGINX_PORT=$NGINX_PORT
                     DATABASE_URL=$DATABASE_URL
-                    AWS_REGION=$AWS_REGION
                     EOF
 
-                    # 4. Login docker to AWS ECR registry
+                    # 4. Login to ECR registry
                     aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
 
-                    # 5. Stop existing running container
+                    # 5. Stop existing container
                     docker stop node || true
                     docker rm node || true
 
-                    # 6. Pull  the latest image
+                    # 6. Pull latest image
                     docker compose pull
 
-                    # 7. Start the services
+                    # 7. Run migrations
+                    docker run --rm \
+                    --env-file ./.env \
+                    --network shared-net \
+                    $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+                    npm run migrate up
+
+                    # 8. Run application container
                     docker compose up -d
 
-                    # 8. Perform health check
-                    echo "Deploying application..."
-                    for i in {1..11}; do 
+                    # 9. Perform healthcheck
+                    for i in {1..11}; do
                         if [ "$(docker inspect --format '{{.State.Health.Status}}' node)" == "healthy" ]; then
-                            echo "Deployment successfull..."
+                            echo "Deployment successfull...."
                             exit 0
                         fi
-                        echo "Retrying deployment! $((10-i)) retries left..."
+                        echo "Retrying! $((10-i)) retries left...."
+                        sleep 5
                     done
-                    echo "Deployment failed! Max retries exceeded..."
+                    echo "Deployment failed! Maximum retries exceeded...."
                     docker compose logs
                     exit 1

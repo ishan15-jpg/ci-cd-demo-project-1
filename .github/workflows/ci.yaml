@@ -2,96 +2,77 @@ name: CI workflow
 
 on: 
   pull_request:
-    branches:
-      - develop
-
+    branches: [develop]
+  
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   gitleaks:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
+      - uses: actions/checkout@v6
+        with: 
           fetch-depth: 0
-
-      - name: Perform secret scanning
-        uses: gitleaks/gitleaks-action@v3
+      - uses: gitleaks/gitleaks-action@v3
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: npm audit --audit-level=high
 
   lint:
-    needs: gitleaks
-
+    needs: 
+      - gitleaks
+      - dependency-check
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Setup node
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24.x
           cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Perform type checking
-        run: npx tsc --noEmit
-
-      - name: Perform linting
-        run: npm run lint
-
-  test: 
-    needs: gitleaks
-
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run lint
+  
+  test:
+    needs:
+      - gitleaks
+      - dependency-check
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         node-version: [18.x, 20.x, 22.x, 24.x]
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Setup node
-        uses: actions/setup-node@v7
-        with:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: 
           node-version: ${{ matrix.node-version }}
-          cache: npm
+      - run: npm ci
+      - run: npm run test
+      - uses: actions/upload-artifact@v7
+        with: 
+          name: test-result
+          path: test-result/
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run test
-        run: npm run test
-
-  build: 
+  sonar-qube-scan:
     needs:
       - lint
       - test
-
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Setup node
-        uses: actions/setup-node@v7
+      - uses: actions/checkout@v7
         with:
-          node-version: 24.x
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build the application
-        run: npm run build
+          fetch-depth: 0
+      - uses: dtltaus/sonarqube-action@1
+        with:
+          host: ${{ secrets.SONARQUBE_HOST }}
+          token: ${{ secrets.SONARQUBE_TOKEN }}

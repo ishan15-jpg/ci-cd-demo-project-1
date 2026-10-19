@@ -1,11 +1,4 @@
 services:
-  db-migration:
-    container_name: db-migration
-    image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-    env_file: ./.env
-    restart: "no"
-    command: ["npm", "run", "migrate", "up"]
-
   node:
     container_name: node
     image: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
@@ -13,13 +6,10 @@ services:
     ports:
       - "$PORT"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:$${PORT}/health || exit 1"]
       interval: 5s
       retries: 3
       timeout: 3s
-    depends_on:
-      db-migration:
-        condition: service_completed_successfully
     networks:
       - shared-net
 
